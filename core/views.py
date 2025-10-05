@@ -28,6 +28,13 @@ from django.contrib.auth.models import User
 from core.models import Paper, Payment
 from mysite import settings
 
+
+site_name = os.getenv('TITLE', '文献跟踪网站')
+payment_price = os.getenv('PAYMENT_PRICE')
+if payment_price is None:
+    raise Exception("ERROR: PAYMENT_PRICE not set!")
+
+
 def generate_order_id():
     timestamp = int(time.time())
     num_1 = int(timestamp / 100000)
@@ -225,6 +232,8 @@ def home(request):
         paper.journal_impact_factor = format_impact_factor(paper.journal_impact_factor)
 
     return render(request, 'core/home.html', {
+        'site_name': site_name,
+        'payment_price': payment_price,
         'query': query,
         'filter_quantile': filter_quantile,
         'impact_factor_min': impact_factor_min,
@@ -254,6 +263,7 @@ def stat(request):
         data.append(year_data)
 
     context = {
+        'site_name': site_name,
         'data': data,
         'months': months,
     }
@@ -352,11 +362,11 @@ def wx_create_payment_order(order_number):
     payload = {
         "mchid": os.getenv('WEB_MERCHANT_ID'),
         "appid": os.getenv('WEB_MERCHANT_APP_ID'),
-        "description": '购买单细胞与空转测序相关文章可下载表格（Excel文件）',
+        "description": '购买后可随时下载最新数据表格（Excel文件）',
         "out_trade_no": order_number,  # 商户订单号
         "notify_url": f"https://{os.getenv('WEB_DOMAIN')}/wx_payment_callback/",  # 微信支付成功后通知的URL
         "amount": {
-            "total": 1000, # 订单金额，单位为分
+            "total": int(payment_price * 100), # 订单金额，单位为分
             "currency": "CNY"
         }
     }
@@ -579,21 +589,29 @@ def wx_login_callback(request):
 def download(request):
     user = request.user
     if not user.is_authenticated:
-        return render(request, 'core/login.html')
+        return render(request, 'core/login.html', {
+            'site_name': site_name,
+            'payment_price': payment_price,
+        })
 
     payment = Payment.objects.get(user=user)
     if not payment.has_paid:
         payment.order_number = generate_order_id()
         payment.save()
         return render(request, 'core/payment.html', {
-            'order_number': payment.order_number
+            'site_name': site_name,
+            'order_number': payment.order_number,
+            'payment_price': payment_price,
         })
 
     if request.method == 'POST':
         if request.POST.get('csrfmiddlewaretoken'):
             return all_papers_to_excel()
 
-    return render(request, 'core/download.html')
+    return render(request, 'core/download.html', {
+        'site_name': site_name,
+        'payment_price': payment_price,
+    })
 
 def do_logout(request):
     logout(request)

@@ -17,18 +17,18 @@
 </style>
 {% endblock %}
 
-<h1>单细胞与空转测序相关文章</h1>
+<h1>{{ site_name }}</h1>
 
 <p class="my-4">
 <a href="/">返回首页</a> | <a href="/logout">退出登录</a>
 </p>
 
-<p class="mt-3">除通过在线浏览外，为方便用户离线查阅，本站也提供 <a href="/download">付费下载</a>（定价10元）。之所以考虑收费，是因为批量扫描这些文献并整理也是有一定成本的，还请理解并多多支持。本站数据会持续更新，而仅需一次付费，未来就可以随时重新下载到最新版本数据。</p>
+<p class="mt-3">除通过在线浏览外，为方便用户离线查阅，本站也提供 <a href="/download">付费下载</a>（定价{{ payment_price }}元）。之所以考虑收费，是因为批量扫描这些文献并整理也是有一定成本的，还请理解并多多支持。本站数据会持续更新，而仅需一次付费，未来就可以随时重新下载到最新版本数据。</p>
 
 <p>请使用微信扫码支付</p>
 <div class="border text-center col-6 offset-3 p-3">
   <div class="py-2" style="font-size:30px; color:red;">订单号：{{ order_number }}</div>
-  <div class="py-2" style="font-size:30px; color:red;">金额：10元</div>
+  <div class="py-2" style="font-size:30px; color:red;">金额：{{ payment_price }}元</div>
   <img id="qrcode" src="" alt="QR Code" style="max-width:300px;">
   <div><button class="btn btn-primary my-3" onclick="location.reload();">支付完成</button></div>
   <div class="py-2">过程中若遇到任何问题，请联系微信：<a href="javascript:void(0);" id="toggleLink">yanlinlin82</a></div>

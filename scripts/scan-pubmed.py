@@ -515,12 +515,9 @@ if __name__ == "__main__":
     print(f"Loading environment variables from {env_file}")
     dotenv.load_dotenv(env_file)
 
-    process(sys.argv[1], [
-        'single-cell sequencing',
-        'single-cell RNA sequencing',
-        'single-cell transcriptomics',
-        'single-cell RNA-seq',
-        'single-cell transcriptome',
-        'scRNA-seq',
-        'spatial transcriptomics'
-        ])
+    keywords = os.environ.get('KEYWORDS')
+    if keywords is None:
+        print("ERROR: KEYWORDS not set!")
+        sys.exit(1)
+
+    process(sys.argv[1], keywords.split('|'))

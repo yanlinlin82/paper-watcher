@@ -41,8 +41,10 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "[::1]",
-    "single-cell-papers.bioinfo-assist.com"
 ]
+WEB_DOMAIN = os.getenv('WEB_DOMAIN')
+if WEB_DOMAIN:
+    ALLOWED_HOSTS.append(WEB_DOMAIN)
 
 
 # Application definition
