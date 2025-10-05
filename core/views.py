@@ -26,7 +26,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
 from core.models import Paper, ParsedItem, Payment
-from core.utils import load_fields
+from core.utils import load_fields, load_keywords
 from config import settings
 
 
@@ -34,9 +34,7 @@ site_name = os.getenv('TITLE')
 if site_name is None:
     raise Exception("ERROR: TITLE not set!")
 
-keywords = os.getenv('KEYWORDS')
-if keywords is None:
-    raise Exception("ERROR: KEYWORDS not set!")
+keywords = load_keywords()
 
 payment_price = os.getenv('PAYMENT_PRICE', 19.9)
 github_url = os.getenv('GITHUB_URL', 'https://github.com/yanlinlin82/paper-watcher')

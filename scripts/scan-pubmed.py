@@ -15,7 +15,7 @@ django.setup()
 
 from core.models import Journal, Paper, ParsedItem
 from core.paper import parse_date
-from core.utils import load_fields, generate_system_prompt
+from core.utils import load_fields, generate_system_prompt, load_keywords
 
 
 fields_order, fields = load_fields()
@@ -51,6 +51,7 @@ def match_journal(name):
     if not journal:
         journal = Journal.objects.filter(abbreviation__iexact=name).first()
     return journal
+
 
 def update_journal_info(paper):
     journal_name = paper.journal.strip()
@@ -193,13 +194,15 @@ class PubmedArticle:
     def __str__(self):
         return f"{self.pmid} - {self.pub_year} - {self.journal}\nTitle: {self.title}\nAbstract: {self.abstract}"
 
-def article_match(article, keyword_list):
-    for keyword in keyword_list:
+
+def article_match(article, keywords):
+    for keyword in keywords:
         pattern = r'\b{}\b'.format(re.escape(keyword))
         if re.search(pattern, article.title, re.IGNORECASE) \
             or re.search(pattern, article.abstract, re.IGNORECASE):
             return True
     return False
+
 
 def prepare_gpt_in_msg(title, abstract):
     # 使用动态生成的 system prompt
@@ -222,6 +225,7 @@ Abstract: {abstract}
         },
     ]
 
+
 def prepare_gpt_input(title, abstract, gpt_input_file):
     if os.path.exists(gpt_input_file):
         with gzip.open(gpt_input_file, 'rt', encoding='utf-8') as gz_file:
@@ -233,6 +237,7 @@ def prepare_gpt_input(title, abstract, gpt_input_file):
             gz_file.write(json_str)
         return in_msg
 
+
 def fix_invalid_json_str(json_str):
     content = json_str.strip()
     if re.match('```json', content):
@@ -241,6 +246,7 @@ def fix_invalid_json_str(json_str):
         content = content.strip()
     content = re.sub(r',\s*}', '}', content) # remove trailing comma before '}'
     return content
+
 
 def ask_gpt(pmid, title, abstract, input_file, output_file):
     print(f"Asking GPT for {pmid} ...")
@@ -295,15 +301,18 @@ def ask_gpt(pmid, title, abstract, input_file, output_file):
         gz_file.write(json_str)
     return data['content']
 
+
 def update_ai_parsed_results(paper, data):
     """使用动态字段配置更新 AI 解析结果到 ParsedItem"""
     return update_parsed_items(paper, data)
+
 
 def write_pubmed_xml_file(xml_node, pubmed_xml_file):
     if not os.path.exists(pubmed_xml_file):
         with gzip.open(pubmed_xml_file, 'wt', encoding='utf-8') as gz_file:
             xml_str = etree.tostring(xml_node, encoding='utf-8').decode('utf-8')
             gz_file.write(xml_str)
+
 
 def parse_pubmed_xml(article):
     try:
@@ -321,11 +330,13 @@ def parse_pubmed_xml(article):
         print(f"  failed to extract data for {article.pmid}: " + str(e))
         raise
 
+
 def write_pubmed_json_file(data, pubmed_json_file):
     if not os.path.exists(pubmed_json_file):
         with gzip.open(pubmed_json_file, 'wt', encoding='utf-8') as gz_file:
             json_str = json.dumps(data, ensure_ascii=False, indent=4)
             gz_file.write(json_str)
+
 
 def parse_by_ai(title_or_abstract_changed, pmid, title, abstract, paper, data, output_dir):
     if title is None or title == "":
@@ -369,6 +380,7 @@ def parse_by_ai(title_or_abstract_changed, pmid, title, abstract, paper, data, o
     if any_updated:
         paper.parse_time = django.utils.timezone.now()
     return any_updated, ai_queried
+
 
 def process_single(xml_source_id, article, output_dir):
 
@@ -433,6 +445,7 @@ def process_single(xml_source_id, article, output_dir):
 
     return create_new, any_updated, ai_queried
 
+
 def process(xml_gz_file, keyword_list):
     xml_source_id = os.path.basename(xml_gz_file).split('.')[0]
     output_dir = os.path.join('output', xml_source_id)
@@ -462,6 +475,7 @@ def process(xml_gz_file, keyword_list):
     print(f"Processing {xml_gz_file} completed!")
     print(f"Total articles: {index + 1}, matched articles: {cnt} ({new_cnt} new, {updated_cnt} updated, {ai_queried_cnt} AI queried)")
 
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print(f"Usage: python {sys.argv[0]} <pubmed.xml.gz>")
@@ -475,9 +489,6 @@ if __name__ == "__main__":
     print(f"Loading environment variables from {env_file}")
     dotenv.load_dotenv(env_file)
 
-    keywords = os.environ.get('KEYWORDS')
-    if keywords is None:
-        print("ERROR: KEYWORDS not set!")
-        sys.exit(1)
+    keywords = load_keywords()
 
-    process(sys.argv[1], keywords.split('|'))
+    process(sys.argv[1], keywords)

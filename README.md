@@ -51,7 +51,7 @@
     OPENAI_PROXY_URL=socks5://x.x.x.x:xxxx    # 用于（从国内翻墙）调用 openai API，使用 DeepSeek 则可不配置此项
 
     TITLE=关于XXX的文章
-    KEYWORDS="keyword-1|keyword-2"
+    KEYWORDS_FILE=data/xxx/keywords.txt  # 文本文件，每行一个关键词（匹配任何一个的文献会保留下来，继续分析）
     ```
 
 4. 初始化并运行Django

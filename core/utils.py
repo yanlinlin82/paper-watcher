@@ -1,6 +1,17 @@
 import os
 
 
+def load_keywords():
+    keywords_file = os.getenv('KEYWORDS_FILE')
+    if keywords_file is None:
+        raise Exception("ERROR: KEYWORDS_FILE not set!")
+    if not os.path.exists(keywords_file):
+        raise Exception(f"ERROR: Keywords file '{keywords_file}' not found!")
+    with open(keywords_file, 'r') as f:
+        keywords = f.read().splitlines()
+    return keywords
+
+
 def load_fields():
     fields_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'fields.tsv')
     fields_order = []

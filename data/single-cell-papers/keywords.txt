@@ -1,0 +1,7 @@
+single-cell sequencing
+single-cell RNA sequencing
+single-cell transcriptomics
+single-cell RNA-seq
+single-cell transcriptome
+scRNA-seq
+spatial transcriptomics
