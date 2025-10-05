@@ -29,10 +29,17 @@ from core.models import Paper, Payment
 from mysite import settings
 
 
-site_name = os.getenv('TITLE', '文献跟踪网站')
+site_name = os.getenv('TITLE')
+if site_name is None:
+    raise Exception("ERROR: TITLE not set!")
+
 payment_price = os.getenv('PAYMENT_PRICE')
 if payment_price is None:
     raise Exception("ERROR: PAYMENT_PRICE not set!")
+
+github_url = os.getenv('GITHUB_URL')
+if github_url is None:
+    raise Exception("ERROR: GITHUB_URL not set!")
 
 
 def generate_order_id():
@@ -233,6 +240,7 @@ def home(request):
 
     return render(request, 'core/home.html', {
         'site_name': site_name,
+        'github_url': github_url,
         'payment_price': payment_price,
         'query': query,
         'filter_quantile': filter_quantile,
