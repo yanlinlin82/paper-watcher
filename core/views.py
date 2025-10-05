@@ -234,6 +234,31 @@ def home(request):
         
         paper.journal_impact_factor = format_impact_factor(paper.journal_impact_factor)
 
+    # 构造动态字段的表头数据
+    dynamic_headers = []
+    for field_key in fields_order:
+        field_info = fields[field_key]
+        dynamic_headers.append({
+            'key': field_key,
+            'name': field_info['name']
+        })
+    
+    # 为每个 paper 构造包含字段值的数据结构
+    papers_with_data = []
+    for paper in papers:
+        # 获取该 paper 的所有动态字段值
+        dynamic_values = []
+        for field_key in fields_order:
+            field_value = getattr(paper, field_key, 'NA')
+            dynamic_values.append(field_value)
+        
+        # 构造包含动态字段值的 paper 数据
+        paper_data = {
+            'paper': paper,
+            'dynamic_values': dynamic_values
+        }
+        papers_with_data.append(paper_data)
+    
     return render(request, 'core/home.html', {
         'site_name': site_name,
         'keywords': keywords,
@@ -248,6 +273,8 @@ def home(request):
         'get_params': get_params,
         'papers': papers,
         'items': items,
+        'dynamic_headers': dynamic_headers,
+        'papers_with_data': papers_with_data,
     })
 
 def stat(request):

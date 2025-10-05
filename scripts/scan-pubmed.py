@@ -382,8 +382,14 @@ def parse_by_ai(title_or_abstract_changed, pmid, title, abstract, paper, data, o
     return any_updated, ai_queried
 
 
-def process_single(xml_source_id, article, output_dir):
+def all_parsed_fields_exist(paper):
+    for field in fields_order:
+        if not ParsedItem.objects.filter(paper=paper, key=field).exists():
+            return False
+    return True
 
+
+def process_single(xml_source_id, article, output_dir):
     write_pubmed_xml_file(article.xml_node, os.path.join(output_dir, f"{article.pmid}.1-pubmed.xml.gz"))
     data = parse_pubmed_xml(article)
     write_pubmed_json_file(data, os.path.join(output_dir, f"{article.pmid}.2-info.json.gz"))
@@ -394,8 +400,11 @@ def process_single(xml_source_id, article, output_dir):
     if paper_list:
         paper = paper_list[0]
         if paper.source is not None and xml_source_id < paper.source:
-            print(f"  skipped because not latest source (xml:{xml_source_id}) < (db:{paper.source})")
-            return False, False, False
+            if all_parsed_fields_exist(paper):
+                print(f"  skipped because not latest source (xml:{xml_source_id}) < (db:{paper.source})")
+                return False, False, False
+            else:
+                print(f"  some fields are missing, will re-parse the paper ...")
 
         if paper.source is None or paper.source != xml_source_id:
             paper.source = xml_source_id

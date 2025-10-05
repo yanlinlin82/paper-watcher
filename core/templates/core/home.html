@@ -212,22 +212,14 @@
       <th>序号</th>
       <th>推送日期</th>
       <th>文章</th>
-      <th class="column">类型</th>
-      <th class="column">简述</th>
-      <th class="column">创新点</th>
-      <th class="column">不足</th>
-      <th class="column">研究目的</th>
-      <th class="column">研究对象</th>
-      <th class="column">领域</th>
-      <th class="column">病种</th>
-      <th class="column">技术</th>
-      <th class="column">模型</th>
-      <th class="column">数据类型</th>
-      <th class="column">样本量</th>
+      {% for header in dynamic_headers %}
+      <th class="column">{{ header.name }}</th>
+      {% endfor %}
     </tr>
   </thead>
   <tbody>
-    {% for paper in papers %}
+    {% for paper_data in papers_with_data %}
+    {% with paper=paper_data.paper %}
     <tr>
       <td>{{ paper.index }}</td>
       <td><a title="{{ paper.parse_time | date:"Y-m-d H:i:s" }} {{ paper.source }}">{{ paper.parse_time | date:"Y-m-d" }}</a></td>
@@ -244,19 +236,11 @@
           {% if paper.pmid %}PMID:<a href="https://pubmed.ncbi.nlm.nih.gov/{{ paper.pmid }}" target="_blank" class="external-link">{{ paper.pmid }}</a>{% endif %}
         </div>
       </td>
-      <td class="column">{{ paper.article_type }}</td>
-      <td class="column">{{ paper.description }}</td>
-      <td class="column">{{ paper.novelty }}</td>
-      <td class="column">{{ paper.limitation }}</td>
-      <td class="column">{{ paper.research_goal }}</td>
-      <td class="column">{{ paper.research_objects }}</td>
-      <td class="column">{{ paper.field_category }}</td>
-      <td class="column">{{ paper.disease_category }}</td>
-      <td class="column">{{ paper.technique }}</td>
-      <td class="column">{{ paper.model_type }}</td>
-      <td class="column">{{ paper.data_type }}</td>
-      <td class="column">{{ paper.sample_size }}</td>
+      {% for value in paper_data.dynamic_values %}
+      <td class="column">{{ value }}</td>
+      {% endfor %}
     </tr>
+    {% endwith %}
     {% endfor %}
   </tbody>
 </table>

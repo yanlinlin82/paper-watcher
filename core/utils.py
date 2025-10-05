@@ -1,6 +1,9 @@
 import os
 
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def load_keywords():
     keywords_file = os.getenv('KEYWORDS_FILE')
     if keywords_file is None:
@@ -13,7 +16,11 @@ def load_keywords():
 
 
 def load_fields():
-    fields_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'fields.tsv')
+    fields_file = os.path.join(BASE_DIR, os.getenv('FIELDS_FILE', 'data/fields.tsv'))
+    if not os.path.exists(fields_file):
+        raise Exception(f"ERROR: Fields file '{fields_file}' not found!")
+
+    print(f"Loading fields from {fields_file} ...")
     fields_order = []
     fields = {}
     with open(fields_file, 'r', encoding='utf-8') as f:
