@@ -21,8 +21,8 @@ pip install -U pip pip-tools
 if [ "$1" == "-u" -o "$1" == "--upgrade" -o ! -f requirements.txt ]; then
     echo "Upgrading requirements.txt"
     pip-compile requirements.in -o requirements.txt
-    pip install -r requirements.txt
 fi
+pip install -r requirements.txt
 
 #==========================================================#
 echo "Setup done"
