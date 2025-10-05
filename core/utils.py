@@ -6,17 +6,24 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def load_keywords():
     keywords_file = os.getenv('KEYWORDS_FILE')
-    if keywords_file is None:
+    if keywords_file is None or keywords_file == '':
         raise Exception("ERROR: KEYWORDS_FILE not set!")
+
+    keywords_file = os.path.join(BASE_DIR, keywords_file)
     if not os.path.exists(keywords_file):
         raise Exception(f"ERROR: Keywords file '{keywords_file}' not found!")
+
     with open(keywords_file, 'r') as f:
         keywords = f.read().splitlines()
     return keywords
 
 
 def load_fields():
-    fields_file = os.path.join(BASE_DIR, os.getenv('FIELDS_FILE', 'data/fields.tsv'))
+    fields_file = os.getenv('FIELDS_FILE', 'data/fields.tsv')
+    if fields_file == '':
+        raise Exception("ERROR: FIELDS_FILE not set!")
+
+    fields_file = os.path.join(BASE_DIR, fields_file)
     if not os.path.exists(fields_file):
         raise Exception(f"ERROR: Fields file '{fields_file}' not found!")
 
