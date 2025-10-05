@@ -22,7 +22,49 @@ def load_fields():
 
     return fields_order, fields
 
-fields_order, fields = load_fields()
+#fields_order, fields = load_fields()
 #print(fields_order)
 #print(fields)
 #raise Exception('stop')
+
+
+def generate_system_prompt():
+    """动态生成 system prompt"""
+    fields_order, fields = load_fields()
+    
+    # 基础 prompt 模板
+    base_prompt = """You are an information extracting bot. You extracts key information of one scientific paper from provided title and abstract, and translate them into Chinese.
+
+The extracted key information should be output in JSON format as:
+
+{json_template}
+
+Some criteria for the key information:
+
+{criteria_list}
+- If no any supported information in the title and abstract, output "NA" for the corresponding key.
+- All values should be translated into Chinese, unless some abbr. that are clear enough to keep in English.
+- Sentences should not have a period at the end.
+"""
+    
+    # 生成 JSON 模板
+    json_lines = ["{"]
+    for field_key in fields_order:
+        json_lines.append(f'  "{field_key}": "...",')
+    json_lines.append("}")
+    json_template = "\n".join(json_lines)
+    
+    # 生成字段描述列表
+    criteria_lines = []
+    for field_key in fields_order:
+        field_info = fields[field_key]
+        criteria_lines.append(f"- {field_key}: {field_info['description']}")
+    criteria_list = "\n".join(criteria_lines)
+    
+    # 生成完整的 prompt
+    full_prompt = base_prompt.format(
+        json_template=json_template,
+        criteria_list=criteria_list
+    )
+    
+    return full_prompt

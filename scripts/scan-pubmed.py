@@ -15,7 +15,7 @@ django.setup()
 
 from core.models import Journal, Paper, ParsedItem
 from core.paper import parse_date
-from core.utils import load_fields
+from core.utils import load_fields, generate_system_prompt
 
 
 fields_order, fields = load_fields()
@@ -202,9 +202,8 @@ def article_match(article, keyword_list):
     return False
 
 def prepare_gpt_in_msg(title, abstract):
-    file_path = os.path.join(os.path.dirname(__file__), '..', 'prompts', 'system.txt')
-    with open(file_path, 'r', encoding='utf-8') as f:
-        system_prompt = f.read()
+    # 使用动态生成的 system prompt
+    system_prompt = generate_system_prompt()
 
     return [
         {
