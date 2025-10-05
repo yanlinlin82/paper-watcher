@@ -30,21 +30,18 @@ class Paper(models.Model):
     pmid = models.CharField(max_length=32, null=True, blank=True, default='')
     abstract = models.TextField(null=True, blank=True, default='')
 
-    article_type = models.CharField(max_length=255, null=True, blank=True, default='')
-    description = models.CharField(max_length=255, null=True, blank=True, default='')
-    novelty = models.CharField(max_length=255, null=True, blank=True, default='')
-    limitation = models.CharField(max_length=255, null=True, blank=True, default='')
-    research_goal = models.CharField(max_length=255, null=True, blank=True, default='')
-    research_objects = models.CharField(max_length=255, null=True, blank=True, default='')
-    field_category = models.CharField(max_length=255, null=True, blank=True, default='')
-    disease_category = models.CharField(max_length=255, null=True, blank=True, default='')
-    technique = models.CharField(max_length=255, null=True, blank=True, default='')
-    model_type = models.CharField(max_length=255, null=True, blank=True, default='')
-    data_type = models.CharField(max_length=255, null=True, blank=True, default='')
-    sample_size = models.CharField(max_length=255, null=True, blank=True, default='')
-
     def __str__(self):
         return f"{self.pub_year} - {self.journal} - {self.title}"
+
+class ParsedItem(models.Model):
+    paper = models.ForeignKey(Paper, on_delete=models.CASCADE)
+    key = models.CharField(max_length=255)
+    value = models.TextField(null=True, blank=True, default='')
+    created = models.DateTimeField(auto_now_add=True)
+    modified = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.paper.pmid} - {self.paper.title} - {self.key}"
 
 class Payment(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)

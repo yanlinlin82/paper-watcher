@@ -25,7 +25,8 @@ from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
-from core.models import Paper, Payment
+from core.models import Paper, ParsedItem, Payment
+from core.utils import load_fields
 from config import settings
 
 
@@ -39,6 +40,10 @@ if keywords is None:
 
 payment_price = os.getenv('PAYMENT_PRICE', 19.9)
 github_url = os.getenv('GITHUB_URL', 'https://github.com/yanlinlin82/paper-watcher')
+
+
+fields_order, fields = load_fields()
+
 
 def generate_order_id():
     timestamp = int(time.time())
@@ -93,6 +98,23 @@ def to_number(s):
 
 from core.query import tokenize, parse
 
+def get_parsed_value(paper, key, default='NA'):
+    """获取指定paper的解析值"""
+    try:
+        parsed_item = paper.parseditem_set.get(key=key)
+        return parsed_item.value or default
+    except ParsedItem.DoesNotExist:
+        return default
+
+def get_parsed_values_for_paper(paper, keys):
+    """批量获取指定paper的多个解析值"""
+    parsed_items = {item.key: item.value or 'NA' for item in paper.parseditem_set.filter(key__in=keys)}
+    return {key: parsed_items.get(key, 'NA') for key in keys}
+
+def get_all_parsed_values(paper):
+    """获取指定paper的所有解析值"""
+    return {item.key: item.value or 'NA' for item in paper.parseditem_set.all()}
+
 def build_query(parsed_query):
     if not parsed_query:
         return Q()
@@ -112,24 +134,17 @@ def build_query(parsed_query):
             current_operator = token
         else:
             # 构建单个字段查询的Q对象
+            # 基础字段查询
             q_obj = (
                 Q(title__icontains=token) |
                 Q(journal__icontains=token) |
                 Q(doi=token) |
-                Q(pmid=token) |
-                Q(article_type__icontains=token) |
-                Q(description__icontains=token) |
-                Q(novelty__icontains=token) |
-                Q(limitation__icontains=token) |
-                Q(research_goal__icontains=token) |
-                Q(research_objects__icontains=token) |
-                Q(field_category__icontains=token) |
-                Q(disease_category__icontains=token) |
-                Q(technique__icontains=token) |
-                Q(model_type__icontains=token) |
-                Q(data_type__icontains=token) |
-                Q(sample_size__icontains=token)
+                Q(pmid=token)
             )
+            
+            # 动态添加解析字段查询
+            for field_key in fields_order:
+                q_obj |= Q(parseditem__key=field_key, parseditem__value__icontains=token)
             if current_operator == 'NOT':
                 q_obj = ~q_obj
 
@@ -195,7 +210,7 @@ def home(request):
         tokens = tokenize(query)
         parsed_query = parse(tokens)
         q_obj = build_query(parsed_query)
-        papers = papers.filter(q_obj)
+        papers = papers.filter(q_obj).distinct()
 
     papers = papers.order_by('-source', '-pub_date_dt')
 
@@ -206,34 +221,19 @@ def home(request):
     if 'page' in get_params:
         del get_params['page']
 
+    # 使用动态字段配置
+    parsed_keys = fields_order
+    
     for index, paper in enumerate(papers):
         paper.index = index + papers.start_index()
         if paper.parse_time is None:
             paper.parse_time = paper.created
-        if paper.article_type is None or paper.article_type == '':
-            paper.article_type = 'NA'
-        if paper.description is None or paper.description == '':
-            paper.description = 'NA'
-        if paper.novelty is None or paper.novelty == '':
-            paper.novelty = 'NA'
-        if paper.limitation is None or paper.limitation == '':
-            paper.limitation = 'NA'
-        if paper.research_goal is None or paper.research_goal == '':
-            paper.research_goal = 'NA'
-        if paper.research_objects is None or paper.research_objects == '':
-            paper.research_objects = 'NA'
-        if paper.field_category is None or paper.field_category == '':
-            paper.field_category = 'NA'
-        if paper.disease_category is None or paper.disease_category == '':
-            paper.disease_category = 'NA'
-        if paper.technique is None or paper.technique == '':
-            paper.technique = 'NA'
-        if paper.model_type is None or paper.model_type == '':
-            paper.model_type = 'NA'
-        if paper.data_type is None or paper.data_type == '':
-            paper.data_type = 'NA'
-        if paper.sample_size is None or paper.sample_size == '':
-            paper.sample_size = 'NA'
+        
+        # 批量获取解析数据并设置到paper对象上
+        parsed_data = get_parsed_values_for_paper(paper, parsed_keys)
+        for key, value in parsed_data.items():
+            setattr(paper, key, value)
+        
         paper.journal_impact_factor = format_impact_factor(paper.journal_impact_factor)
 
     return render(request, 'core/home.html', {
@@ -280,16 +280,26 @@ def all_papers_to_excel():
     wb = Workbook()
     ws = wb.active
     ws.title = "Papers"
-    ws.append([
-        "标题", "杂志", "影响因子", "分区", "发表日期", "DOI", "PMID",
-        "类型", "简述", "创新点", "不足", "研究目的", "研究对象",
-        "领域", "病种", "技术", "模型", "数据类型", "样本量"
-    ])
+    # 构建动态表头
+    headers = ["标题", "杂志", "影响因子", "分区", "发表日期", "DOI", "PMID"]
+    # 添加动态字段的中文名称
+    for field_key in fields_order:
+        headers.append(fields[field_key]['name'])
+    
+    ws.append(headers)
+    # 使用动态字段配置
+    parsed_keys = fields_order
+    
     for papers in Paper.objects.all():
         quartile_info = '-'
         if papers.journal_impact_factor_quartile:
             quartile_info = 'Q' + papers.journal_impact_factor_quartile
-        ws.append([
+        
+        # 批量获取解析数据
+        parsed_data = get_parsed_values_for_paper(papers, parsed_keys)
+        
+        # 构建动态数据行
+        row_data = [
             papers.title,
             papers.journal,
             format_impact_factor(papers.journal_impact_factor),
@@ -297,19 +307,12 @@ def all_papers_to_excel():
             papers.pub_date,
             papers.doi,
             papers.pmid,
-            papers.article_type,
-            papers.description,
-            papers.novelty,
-            papers.limitation,
-            papers.research_goal,
-            papers.research_objects,
-            papers.field_category,
-            papers.disease_category,
-            papers.technique,
-            papers.model_type,
-            papers.data_type,
-            papers.sample_size
-            ])
+        ]
+        # 添加动态字段值
+        for field_key in fields_order:
+            row_data.append(parsed_data[field_key])
+        
+        ws.append(row_data)
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

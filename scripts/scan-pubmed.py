@@ -13,8 +13,38 @@ sys.path.append('.')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
-from core.models import Journal, Paper
+from core.models import Journal, Paper, ParsedItem
 from core.paper import parse_date
+from core.utils import load_fields
+
+
+fields_order, fields = load_fields()
+
+
+def update_parsed_item(paper, key, value):
+    """更新或创建 ParsedItem"""
+    parsed_item, created = ParsedItem.objects.get_or_create(
+        paper=paper,
+        key=key,
+        defaults={'value': value or ''}
+    )
+    if not created and parsed_item.value != value:
+        parsed_item.value = value or ''
+        parsed_item.save()
+        return True
+    return created
+
+
+def update_parsed_items(paper, data):
+    """批量更新 ParsedItem"""
+    any_updated = False
+    for field_key in fields_order:
+        if field_key in data:
+            updated = update_parsed_item(paper, field_key, data[field_key])
+            if updated:
+                any_updated = True
+    return any_updated
+
 
 def match_journal(name):
     journal = Journal.objects.filter(name__iexact=name).first()
@@ -267,44 +297,8 @@ def ask_gpt(pmid, title, abstract, input_file, output_file):
     return data['content']
 
 def update_ai_parsed_results(paper, data):
-    any_updated = False
-    if paper.article_type != data.get('article_type', ''):
-        paper.article_type = data.get('article_type', '')
-        any_updated = True
-    if paper.description != data.get('description', ''):
-        paper.description = data.get('description', '')
-        any_updated = True
-    if paper.novelty != data.get('novelty', ''):
-        paper.novelty = data.get('novelty', '')
-        any_updated = True
-    if paper.limitation != data.get('limitation', ''):
-        paper.limitation = data.get('limitation', '')
-        any_updated = True
-    if paper.research_goal != data.get('research_goal', ''):
-        paper.research_goal = data.get('research_goal', '')
-        any_updated = True
-    if paper.research_objects != data.get('research_objects', ''):
-        paper.research_objects = data.get('research_objects', '')
-        any_updated = True
-    if paper.field_category != data.get('field_category', ''):
-        paper.field_category = data.get('field_category', '')
-        any_updated = True
-    if paper.disease_category != data.get('disease_category', ''):
-        paper.disease_category = data.get('disease_category', '')
-        any_updated = True
-    if paper.technique != data.get('technique', ''):
-        paper.technique = data.get('technique', '')
-        any_updated = True
-    if paper.model_type != data.get('model_type', ''):
-        paper.model_type = data.get('model_type', '')
-        any_updated = True
-    if paper.data_type != data.get('data_type', ''):
-        paper.data_type = data.get('data_type', '')
-        any_updated = True
-    if paper.sample_size != data.get('sample_size', ''):
-        paper.sample_size = data.get('sample_size', '')
-        any_updated = True
-    return any_updated
+    """使用动态字段配置更新 AI 解析结果到 ParsedItem"""
+    return update_parsed_items(paper, data)
 
 def write_pubmed_xml_file(xml_node, pubmed_xml_file):
     if not os.path.exists(pubmed_xml_file):
