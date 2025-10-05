@@ -384,6 +384,10 @@ def parse_by_ai(title_or_abstract_changed, pmid, title, abstract, paper, data, o
 
 
 def all_parsed_fields_exist(paper):
+    # 如果 paper 还没有保存到数据库，返回 False
+    if paper.pk is None:
+        return False
+    
     for field in fields_order:
         if not ParsedItem.objects.filter(paper=paper, key=field).exists():
             return False
