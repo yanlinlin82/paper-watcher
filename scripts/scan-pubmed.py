@@ -10,7 +10,7 @@ import httpx
 import django
 
 sys.path.append('.')
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'mysite.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
 from core.models import Journal, Paper

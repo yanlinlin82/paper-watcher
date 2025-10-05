@@ -76,7 +76,7 @@ MIDDLEWARE = [
 
 # Root URL configuration
 # ref: https://docs.djangoproject.com/en/5.2/ref/settings/#std-setting-ROOT_URLCONF
-ROOT_URLCONF = 'mysite.urls'
+ROOT_URLCONF = 'config.urls'
 
 
 # Templates
@@ -100,7 +100,7 @@ TEMPLATES = [
 
 # WSGI application
 # ref: https://docs.djangoproject.com/en/5.2/ref/settings/#wsgi-application
-WSGI_APPLICATION = 'mysite.wsgi.application'
+WSGI_APPLICATION = 'config.wsgi.application'
 
 
 # Database

@@ -26,7 +26,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
 from core.models import Paper, Payment
-from mysite import settings
+from config import settings
 
 
 site_name = os.getenv('TITLE')
