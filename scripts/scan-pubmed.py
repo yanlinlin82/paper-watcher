@@ -226,8 +226,8 @@ Abstract: {abstract}
     ]
 
 
-def prepare_gpt_input(title, abstract, gpt_input_file):
-    if os.path.exists(gpt_input_file):
+def prepare_gpt_input(title, abstract, gpt_input_file, force_ai_parse):
+    if os.path.exists(gpt_input_file) and not force_ai_parse:
         with gzip.open(gpt_input_file, 'rt', encoding='utf-8') as gz_file:
             return json.load(gz_file)
     else:
@@ -248,9 +248,9 @@ def fix_invalid_json_str(json_str):
     return content
 
 
-def ask_gpt(pmid, title, abstract, input_file, output_file):
+def ask_gpt(pmid, title, abstract, input_file, output_file, force_ai_parse):
     print(f"Asking GPT for {pmid} ...")
-    in_msg = prepare_gpt_input(title, abstract, input_file)
+    in_msg = prepare_gpt_input(title, abstract, input_file, force_ai_parse)
     out_msg = None
     try:
         api_key = os.environ.get("OPENAI_API_KEY")
@@ -338,7 +338,8 @@ def write_pubmed_json_file(data, pubmed_json_file):
             gz_file.write(json_str)
 
 
-def parse_by_ai(title_or_abstract_changed, pmid, title, abstract, paper, data, output_dir):
+def parse_by_ai(title_or_abstract_changed, pmid, title, abstract, paper, data, output_dir, force_ai_parse):
+    print(f"  Parsing {pmid} by AI ...")
     if title is None or title == "":
         print(f"  Skip asking GPT for {pmid}, no title ...")
         return False, False
@@ -350,8 +351,8 @@ def parse_by_ai(title_or_abstract_changed, pmid, title, abstract, paper, data, o
     ai_ask_file = os.path.join(output_dir, f"{pmid}.3-chat-ask.json.gz")
     ai_answer_file = os.path.join(output_dir, f"{pmid}.4-chat-answer.json.gz")
     ai_queried = False
-    if not os.path.exists(ai_answer_file) or title_or_abstract_changed:
-        res = ask_gpt(pmid, title, abstract, ai_ask_file, ai_answer_file)
+    if not os.path.exists(ai_answer_file) or title_or_abstract_changed or force_ai_parse:
+        res = ask_gpt(pmid, title, abstract, ai_ask_file, ai_answer_file, force_ai_parse)
         ai_queried = True
     else:
         with gzip.open(ai_answer_file, 'rt', encoding='utf-8') as gz_file:
@@ -390,26 +391,31 @@ def all_parsed_fields_exist(paper):
 
 
 def process_single(xml_source_id, article, output_dir):
+    print(f"  Processing {article.pmid} ...")
     write_pubmed_xml_file(article.xml_node, os.path.join(output_dir, f"{article.pmid}.1-pubmed.xml.gz"))
     data = parse_pubmed_xml(article)
     write_pubmed_json_file(data, os.path.join(output_dir, f"{article.pmid}.2-info.json.gz"))
 
+    force_ai_parse = False
     create_new = False
     any_updated = False
     paper_list = Paper.objects.filter(pmid=article.pmid)
     if paper_list:
         paper = paper_list[0]
-        if paper.source is not None and xml_source_id < paper.source:
-            if all_parsed_fields_exist(paper):
-                print(f"  skipped because not latest source (xml:{xml_source_id}) < (db:{paper.source})")
-                return False, False, False
-            else:
-                print(f"  some fields are missing, will re-parse the paper ...")
+        if not all_parsed_fields_exist(paper):
+            force_ai_parse = True
+            print(f"  some fields are missing, will re-parse the paper ...")
 
+        if not force_ai_parse and paper.source is not None and xml_source_id < paper.source:
+            print(f"  skipped because not latest source (xml:{xml_source_id}) < (db:{paper.source})")
+            return False, False, False
+
+        print(f"  Updating paper for {article.pmid} ...")
         if paper.source is None or paper.source != xml_source_id:
             paper.source = xml_source_id
             any_updated = True
     else:
+        print(f"  Creating new paper for {article.pmid} ...")
         paper = Paper(pmid=article.pmid, source=xml_source_id)
         create_new = True
         any_updated = True
@@ -443,7 +449,7 @@ def process_single(xml_source_id, article, output_dir):
         paper.abstract = data['abstract']
         any_updated = True
 
-    updated, ai_queried = parse_by_ai(title_or_abstract_changed, article.pmid, article.title, article.abstract, paper, data, output_dir)
+    updated, ai_queried = parse_by_ai(title_or_abstract_changed, article.pmid, article.title, article.abstract, paper, data, output_dir, force_ai_parse)
     if updated:
         any_updated = True
 
