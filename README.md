@@ -30,12 +30,11 @@
 2. 准备环境
 
     ```sh
-    python -m venv .venv
-    . .venv/bin/activate
-    pip install -U pip
-    pip install -U pip-tools
-    pip-compile requirements.in -o requirements.txt
-    pip install -r requirements.txt
+    # 安装 uv
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+
+    # 安装依赖包
+    uv sync
     ```
 
 3. 配置环境参数
@@ -57,8 +56,8 @@
 4. 初始化并运行Django
 
     ```sh
-    python manage.py migrate
-    python manage.py collectstatic
+    uv run manage.py migrate
+    uv run manage.py collectstatic
     ```
 
 5. PubMed数据获取
