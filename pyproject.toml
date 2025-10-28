@@ -1,0 +1,25 @@
+[project]
+name = "paper-watcher"
+version = "0.1.0"
+description = "A Django-based paper watching application"
+requires-python = ">=3.12"
+dependencies = [
+    "lxml",
+    "openai",
+    "python-dotenv",
+    "httpx[socks]",
+    "django",
+    "openpyxl",
+    "requests",
+    "cryptography",
+    "qrcode[pil]",
+    "pycryptodome",
+    "pandas",
+    "bottleneck",
+    "numexpr",
+    "numpy",
+    "PySocks",
+]
+
+[tool.uv]
+index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
