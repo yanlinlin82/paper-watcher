@@ -453,6 +453,8 @@ def process_single(xml_source_id, article, output_dir):
         paper.abstract = data['abstract']
         any_updated = True
 
+    if create_new:
+        paper.save()
     updated, ai_queried = parse_by_ai(title_or_abstract_changed, article.pmid, article.title, article.abstract, paper, data, output_dir, force_ai_parse)
     if updated:
         any_updated = True
