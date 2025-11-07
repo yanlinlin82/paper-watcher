@@ -11,18 +11,14 @@ fi
 
 #==========================================================#
 
-if [ ! -d .venv ]; then
-    echo "Creating virtual environment"
-    python -m venv .venv
+if [ "$1" == "-u" -o "$1" == "--upgrade" ]; then
+    echo "Upgrading dependencies"
+    uv lock --upgrade
+    uv sync --no-install-project
+else
+    echo "Syncing dependencies"
+    uv sync --no-install-project
 fi
-. .venv/bin/activate
-pip install -U pip pip-tools
-
-if [ "$1" == "-u" -o "$1" == "--upgrade" -o ! -f requirements.txt ]; then
-    echo "Upgrading requirements.txt"
-    pip-compile requirements.in -o requirements.txt
-fi
-pip install -r requirements.txt
 
 #==========================================================#
 echo "Setup done"
