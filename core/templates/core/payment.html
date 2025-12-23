@@ -64,12 +64,26 @@
         if (data.qr_image) {
           // 将Base64图像数据设置为img标签的src
           $('#qrcode').attr('src', 'data:image/png;base64,' + data.qr_image);
+        } else if (data.error) {
+          console.error('Failed to generate QR code: ' + data.error);
+          $('#qrcode').after('<p class="text-danger mt-2">生成二维码失败: ' + data.error + '</p>');
         } else {
-          console.error('Failed to generate QR code');
+          console.error('Failed to generate QR code: Unknown error');
+          $('#qrcode').after('<p class="text-danger mt-2">生成二维码失败，请稍后重试</p>');
         }
       },
       error: function(xhr, status, error) {
         console.error('Error occurred: ' + error);
+        var errorMsg = '生成二维码失败，请稍后重试';
+        try {
+          var responseData = JSON.parse(xhr.responseText);
+          if (responseData.error) {
+            errorMsg = responseData.error;
+          }
+        } catch (e) {
+          // 如果无法解析JSON，使用默认错误消息
+        }
+        $('#qrcode').after('<p class="text-danger mt-2">' + errorMsg + '</p>');
       }
     });
   })();

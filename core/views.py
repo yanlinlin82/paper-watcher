@@ -36,7 +36,7 @@ if site_name is None:
 
 keywords = load_keywords()
 
-payment_price = os.getenv('PAYMENT_PRICE', 19.9)
+payment_price = float(os.getenv('PAYMENT_PRICE', '19.9'))
 github_url = os.getenv('GITHUB_URL', 'https://github.com/yanlinlin82/paper-watcher')
 
 
@@ -413,58 +413,87 @@ def wx_create_payment_order(order_number):
     headers = generate_v3_headers(json_payload)
 
     # 发送请求
-    response = requests.post(
-        url,
-        headers=headers,
-        data=json_payload,
-        cert=(
-            apiclient_cert_file,
-            apiclient_key_file
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            data=json_payload,
+            cert=(
+                apiclient_cert_file,
+                apiclient_key_file
+            )
         )
-    )
-    if response.status_code != 200:
-        raise Exception(f"Failed to create order: {response.content}")
+        if response.status_code != 200:
+            error_detail = response.text if hasattr(response, 'text') else str(response.content)
+            raise Exception(f"微信支付API调用失败 (状态码: {response.status_code}): {error_detail}")
 
-    # 解析响应
-    response_data = response.json()
-    qr_code_url = response_data.get("code_url")
-    return qr_code_url
+        # 解析响应
+        response_data = response.json()
+        qr_code_url = response_data.get("code_url")
+        if not qr_code_url:
+            raise Exception(f"微信支付响应中未找到code_url字段: {response_data}")
+        return qr_code_url
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"请求微信支付API时发生网络错误: {str(e)}")
+    except json.JSONDecodeError as e:
+        raise Exception(f"解析微信支付响应JSON失败: {str(e)}")
 
 def wx_create_payment(request):
+    print(f"wx_create_payment: {request.method}")
     if request.method != 'POST':
         return HttpResponseBadRequest("Invalid request method")
 
-    payment = Payment.objects.get(user=request.user)
-    if payment.has_paid:
+    print(f"wx_create_payment: {request.user}")
+    try:
+        payment = Payment.objects.get(user=request.user)
+        if payment.has_paid:
+            return JsonResponse({
+                "qr_image": None,
+                "message": "Payment already completed",
+            })
+
+        # 发起微信支付请求并获取支付二维码的URL
+        qr_url = wx_create_payment_order(payment.order_number)
+
+        if not qr_url:
+            return JsonResponse({
+                "error": "Failed to generate QR code URL",
+            }, status=500)
+
+        # 生成二维码
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill='black', back_color='white')
+
+        # 将二维码图像转换为Base64编码
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode()
+
+        # 返回二维码图像的Base64字符串
         return JsonResponse({
-            "qr_image": None,
-            "message": "Payment already completed",
+            "qr_image": img_str,
         })
-
-    # 发起微信支付请求并获取支付二维码的URL
-    qr_url = wx_create_payment_order(payment.order_number)
-
-    # 生成二维码
-    qr = qrcode.QRCode(
-        version=1,
-        error_correction=qrcode.constants.ERROR_CORRECT_L,
-        box_size=10,
-        border=4,
-    )
-    qr.add_data(qr_url)
-    qr.make(fit=True)
-
-    img = qr.make_image(fill='black', back_color='white')
-
-    # 将二维码图像转换为Base64编码
-    buffered = BytesIO()
-    img.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode()
-
-    # 返回二维码图像的Base64字符串
-    return JsonResponse({
-        "qr_image": img_str,
-    })
+    except Payment.DoesNotExist:
+        return JsonResponse({
+            "error": "Payment record not found",
+        }, status=404)
+    except Exception as e:
+        import traceback
+        error_message = str(e)
+        error_traceback = traceback.format_exc()
+        print(f"Error in wx_create_payment: {error_message}")
+        print(f"Traceback: {error_traceback}")
+        return JsonResponse({
+            "error": f"Failed to create payment: {error_message}",
+        }, status=500)
 
 def decrypt_wechat_ciphertext(api_key, associated_data, nonce, ciphertext):
     # Base64 decode the ciphertext
