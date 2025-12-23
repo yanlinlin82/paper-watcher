@@ -439,11 +439,9 @@ def wx_create_payment_order(order_number):
         raise Exception(f"解析微信支付响应JSON失败: {str(e)}")
 
 def wx_create_payment(request):
-    print(f"wx_create_payment: {request.method}")
     if request.method != 'POST':
         return HttpResponseBadRequest("Invalid request method")
 
-    print(f"wx_create_payment: {request.user}")
     try:
         payment = Payment.objects.get(user=request.user)
         if payment.has_paid:
