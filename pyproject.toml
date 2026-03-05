@@ -4,21 +4,21 @@ version = "0.1.0"
 description = "A Django-based paper watching application"
 requires-python = ">=3.12"
 dependencies = [
-    "lxml",
-    "openai",
-    "python-dotenv",
-    "httpx[socks]",
-    "django",
-    "openpyxl",
-    "requests",
-    "cryptography",
-    "qrcode[pil]",
-    "pycryptodome",
-    "pandas",
-    "bottleneck",
-    "numexpr",
-    "numpy",
-    "PySocks",
+    "lxml>=6.0.2",
+    "openai>=2.24.0",
+    "python-dotenv>=1.2.2",
+    "httpx[socks]>=0.28.1",
+    "django>=6.0.3",
+    "openpyxl>=3.1.5",
+    "requests>=2.32.5",
+    "cryptography>=46.0.5",
+    "qrcode[pil]>=8.2",
+    "pycryptodome>=3.23.0",
+    "pandas>=3.0.1",
+    "bottleneck>=1.6.0",
+    "numexpr>=2.14.1",
+    "numpy>=2.4.2",
+    "PySocks>=1.7.1",
 ]
 
 [tool.uv]
