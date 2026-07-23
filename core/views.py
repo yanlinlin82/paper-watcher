@@ -21,7 +21,7 @@ from cryptography import x509
 from django.shortcuts import render, redirect
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q
-from django.http import HttpResponse, JsonResponse, HttpResponseBadRequest
+from django.http import HttpResponse, FileResponse, JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
@@ -648,6 +648,23 @@ def wx_login_callback(request):
 
     return redirect('download')
 
+def get_latest_excel_path():
+    """获取 output/ 目录下最新生成的 Excel 文件路径"""
+    output_dir = os.path.join(settings.BASE_DIR, 'output')
+    if not os.path.isdir(output_dir):
+        return None
+    pattern = 'papers_'
+    excel_files = [
+        f for f in os.listdir(output_dir)
+        if f.startswith(pattern) and f.endswith('.xlsx')
+    ]
+    if not excel_files:
+        return None
+    # 按文件名倒序取最新（日期 ISO 格式，字典序即时间序）
+    latest = sorted(excel_files, reverse=True)[0]
+    return os.path.join(output_dir, latest)
+
+
 def download(request):
     user = request.user
     if not user.is_authenticated:
@@ -668,7 +685,17 @@ def download(request):
 
     if request.method == 'POST':
         if request.POST.get('csrfmiddlewaretoken'):
-            return all_papers_to_excel()
+            excel_path = get_latest_excel_path()
+            if excel_path is None:
+                return HttpResponse(
+                    'Excel 文件尚未生成，请稍后再试。',
+                    status=404,
+                )
+            return FileResponse(
+                open(excel_path, 'rb'),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                filename=os.path.basename(excel_path),
+            )
 
     return render(request, 'core/download.html', {
         'site_name': site_name,
