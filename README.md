@@ -1,3 +1,5 @@
+
+
 # 科研文献跟踪网站
 
 ## 简介
@@ -71,7 +73,7 @@
 6. 扫描PubMed文件，提取文献信息，导入数据库
 
     ```sh
-    python scripts/scan-pubmed.py /path/to/pubmed/updatefiles/pubmedXXnXXXX.xml.gz
+    uv run scripts/scan-pubmed.py /path/to/pubmed/updatefiles/pubmedXXnXXXX.xml.gz
     ```
 
     上述命令每次只导入一个`pubmedXXnXXXX.xml.gz`文件（通常含有上万篇文献）中的匹配关键词的文献信息。如果希望扫描并导入全部PubMed数据，则可以使用如下bash循环：
@@ -80,7 +82,7 @@
     find /path/to/pubmed/{baseline,updatefiles}/ -type f -name 'pubmed*.xml.gz' \
         | sort -r \
         | while read f; do
-        python scripts/scan-pubmed.py "$f"
+        uv run scripts/scan-pubmed.py "$f"
         sleep 1
     done
     ```
