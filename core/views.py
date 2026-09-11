@@ -12,6 +12,7 @@ import json
 import calendar
 from io import BytesIO
 from collections import Counter
+from decimal import Decimal
 from openpyxl import Workbook
 from Crypto.Cipher import AES
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -26,7 +27,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
 from core.models import Paper, ParsedItem, Payment
-from core.utils import load_fields, load_keywords
+from core.utils import load_fields, load_keywords, price_to_cents
 from config import settings
 
 
@@ -36,7 +37,7 @@ if site_name is None:
 
 keywords = load_keywords()
 
-payment_price = float(os.getenv('PAYMENT_PRICE', '19.9'))
+payment_price = Decimal(os.getenv('PAYMENT_PRICE', '19.9'))
 github_url = os.getenv('GITHUB_URL', 'https://github.com/yanlinlin82/paper-watcher')
 
 
@@ -401,7 +402,7 @@ def wx_create_payment_order(order_number):
         "out_trade_no": order_number,  # 商户订单号
         "notify_url": f"https://{os.getenv('WEB_DOMAIN')}/wx_payment_callback/",  # 微信支付成功后通知的URL
         "amount": {
-            "total": int(payment_price * 100), # 订单金额，单位为分
+            "total": price_to_cents(payment_price), # 订单金额，单位为分
             "currency": "CNY"
         }
     }

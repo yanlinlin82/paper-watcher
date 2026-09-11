@@ -1,7 +1,18 @@
 import os
+from decimal import Decimal, ROUND_HALF_UP
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def price_to_cents(price):
+    """Convert a yuan price into an exact integer number of cents.
+
+    Converts through Decimal because float arithmetic truncates:
+    int(19.9 * 100) == 1989, i.e. a 19.9-yuan order gets charged 19.89 yuan.
+    """
+    amount = Decimal(str(price)) * 100
+    return int(amount.to_integral_value(rounding=ROUND_HALF_UP))
 
 
 def load_keywords():
