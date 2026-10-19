@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import time
 from lxml import etree
 import gzip
 import openai
@@ -13,9 +14,16 @@ sys.path.append('.')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
 
+from django.db import OperationalError, connection
+
 from core.models import Journal, Paper, ParsedItem
 from core.paper import parse_date
 from core.utils import load_fields, generate_system_prompt, load_keywords
+
+
+# SQLite 与线上 Web 服务共享同一个数据库文件，写-写冲突时重试。
+DB_LOCK_MAX_RETRIES = 5
+DB_LOCK_RETRY_DELAY_SECONDS = 3
 
 
 fields_order, fields = load_fields()
@@ -467,6 +475,23 @@ def process_single(xml_source_id, article, output_dir):
     return create_new, any_updated, ai_queried
 
 
+def process_single_with_retry(xml_source_id, article, output_dir):
+    """重试因并发写入导致的 database is locked 错误。"""
+    for attempt in range(DB_LOCK_MAX_RETRIES):
+        try:
+            return process_single(xml_source_id, article, output_dir)
+        except OperationalError as exc:
+            message = str(exc).lower()
+            is_locked = 'database is locked' in message or 'database table is locked' in message
+            if not is_locked or attempt == DB_LOCK_MAX_RETRIES - 1:
+                raise
+            delay = DB_LOCK_RETRY_DELAY_SECONDS * (attempt + 1)
+            print(f"  WARNING: database is locked, retrying in {delay}s (attempt {attempt + 1}/{DB_LOCK_MAX_RETRIES}) ...")
+            # 关闭连接，让下一次重试从新连接开始，避免残留的事务状态。
+            connection.close()
+            time.sleep(delay)
+
+
 def process(xml_gz_file, keyword_list):
     xml_source_id = os.path.basename(xml_gz_file).split('.')[0]
     output_dir = os.path.join('output', xml_source_id)
@@ -485,7 +510,7 @@ def process(xml_gz_file, keyword_list):
         cnt += 1
         print(f"Processing ({xml_source_id} - {index + 1}/{total} - {cnt}): (PMID: {article.pmid}) {article.title}")
 
-        created, updated, ai_queried = process_single(xml_source_id, article, output_dir)
+        created, updated, ai_queried = process_single_with_retry(xml_source_id, article, output_dir)
         if created:
             new_cnt += 1
         if updated:

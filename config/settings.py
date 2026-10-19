@@ -109,6 +109,14 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            # 每日更新脚本与线上 Web 服务会并发访问同一个 SQLite 文件。
+            # 默认的 rollback journal 下读写互斥，且默认 busy timeout 只有 5 秒，
+            # 并发时 scan-pubmed.py 会以 "database is locked" 中断。
+            # WAL 允许读写并发；更长的 timeout 用来等待偶发的写-写冲突。
+            'timeout': 60,
+            'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
+        },
     }
 }
 

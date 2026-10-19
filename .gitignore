@@ -2,6 +2,7 @@
 .env
 output/
 db.sqlite3*
+.updated-*
 __pycache__/
 .vscode/
 static_root/
