@@ -1,7 +1,14 @@
+import sqlite3
 from decimal import Decimal
 
-from django.test import SimpleTestCase
+from django.db import connection
+from django.test import SimpleTestCase, TestCase
 
+from core.management.commands.generate_excel import (
+    PREFETCH_BATCH_SIZE,
+    iter_papers_with_items,
+)
+from core.models import Paper
 from core.utils import price_to_cents
 
 
@@ -32,3 +39,28 @@ class PriceToCentsTests(SimpleTestCase):
     def test_rounds_half_up(self):
         self.assertEqual(price_to_cents('19.994'), 1999)
         self.assertEqual(price_to_cents('19.995'), 2000)
+
+
+class IterPapersWithItemsTests(TestCase):
+    def test_prefetch_stays_within_sqlite_variable_limit(self):
+        # Regression: prefetching every paper in one query exceeded SQLite's
+        # bound-variable limit on the production database ("too many SQL
+        # variables"). Lower the limit to its historical default so an
+        # unbounded prefetch fails here as well.
+        paper_count = PREFETCH_BATCH_SIZE * 2 + 200
+        Paper.objects.bulk_create([
+            Paper(title=f'paper {i}') for i in range(paper_count)
+        ])
+
+        connection.ensure_connection()
+        getlimit = connection.connection.getlimit
+        setlimit = connection.connection.setlimit
+        original = getlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER)
+        self.addCleanup(setlimit, sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, original)
+        setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, 999)
+
+        papers = list(iter_papers_with_items())
+
+        self.assertEqual(len(papers), paper_count)
+        for paper in papers:
+            self.assertIn('parseditem_set', paper._prefetched_objects_cache)

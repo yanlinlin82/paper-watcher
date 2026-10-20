@@ -7,9 +7,33 @@ import os
 from datetime import date
 from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.db.models import prefetch_related_objects
 from openpyxl import Workbook
 from core.models import Paper
 from core.utils import load_fields
+
+
+# prefetch_related() puts every parent id into a single `IN (...)` clause, and
+# SQLite rejects statements with too many bound variables (999 on builds before
+# 3.32, 32766 on newer ones). Once the paper table outgrows that limit the query
+# fails with "too many SQL variables", so prefetch in small batches instead.
+PREFETCH_BATCH_SIZE = 500
+
+
+def iter_papers_with_items():
+    papers = []
+    for paper in Paper.objects.all().iterator(chunk_size=PREFETCH_BATCH_SIZE):
+        papers.append(paper)
+        if len(papers) < PREFETCH_BATCH_SIZE:
+            continue
+
+        prefetch_related_objects(papers, 'parseditem_set')
+        yield from papers
+        papers = []
+
+    if papers:
+        prefetch_related_objects(papers, 'parseditem_set')
+        yield from papers
 
 
 def format_impact_factor(impact_factor):
@@ -30,8 +54,8 @@ def generate_excel_file(output_path):
         headers.append(fields[field_key]['name'])
     ws.append(headers)
 
-    # 使用 prefetch_related 批量预取解析数据，避免 N+1 查询
-    for paper in Paper.objects.all().prefetch_related('parseditem_set'):
+    # 分批预取解析数据，避免 N+1 查询，同时不超出 SQLite 的变量数上限
+    for paper in iter_papers_with_items():
         quartile_info = '-'
         if paper.journal_impact_factor_quartile:
             quartile_info = 'Q' + paper.journal_impact_factor_quartile
