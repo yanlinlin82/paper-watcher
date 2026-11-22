@@ -30,6 +30,16 @@ class Paper(models.Model):
     pmid = models.CharField(max_length=32, null=True, blank=True, default='')
     abstract = models.TextField(null=True, blank=True, default='')
 
+    class Meta:
+        # 列表页固定按 (source, pub_date_dt) 倒序取前 N 条。缺少这个复合索引时，
+        # SQLite 每次请求都要对整张表做全量排序（USE TEMP B-TREE FOR ORDER BY），
+        # 深层分页还要再跳过数万行，单请求耗时可达数十秒。
+        # 升序索引可被反向扫描，直接给出 ORDER BY source DESC, pub_date_dt DESC 的顺序，
+        # 配合 LIMIT 提前终止，首页与深页都能回到毫秒级。
+        indexes = [
+            models.Index(fields=['source', 'pub_date_dt'], name='core_paper_src_date'),
+        ]
+
     def __str__(self):
         return f"{self.pub_year} - {self.journal} - {self.title}"
 

@@ -20,9 +20,9 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.backends import default_backend
 from cryptography import x509
 from django.shortcuts import render, redirect
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.paginator import Paginator
 from django.db.models import Q
-from django.http import HttpResponse, FileResponse, JsonResponse, HttpResponseBadRequest
+from django.http import Http404, HttpResponse, FileResponse, JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
@@ -63,22 +63,30 @@ def generate_sign(params, api_key):
 def generate_nonce_str(length=32):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
+PAGE_SIZE = 20
+
+
 def get_paginated_reviews(reviews, page_number):
-    if page_number is None:
+    paginator = Paginator(reviews, PAGE_SIZE)
+
+    if page_number in (None, ''):
         page_number = 1
 
-    p = Paginator(reviews, 20)
     try:
-        reviews = p.get_page(page_number)
-    except PageNotAnInteger:
-        page_number = 1
-        reviews = p.page(1)
-    except EmptyPage:
-        page_number = p.num_pages
-        reviews = p.page(p.num_pages)
+        page_number = int(page_number)
+    except (TypeError, ValueError):
+        raise Http404('Invalid page number')
 
+    # 越界页码直接 404。旧实现调用 Paginator.get_page()，越界会被夹到末页并返回
+    # 200，爬虫因此收不到终止信号，会继续枚举 page=2654、2655……，每次都触发
+    # 整表排序。num_pages 是数据驱动的硬上限，也避免对超大页码做 OFFSET 查询。
+    if page_number < 1 or page_number > paginator.num_pages:
+        raise Http404('Page out of range')
+
+    reviews = paginator.page(page_number)
     items = list(reviews)
-    indices = list(range((reviews.number - 1) * p.per_page + 1, reviews.number * p.per_page + 1))
+    indices = list(range((reviews.number - 1) * paginator.per_page + 1,
+                         reviews.number * paginator.per_page + 1))
 
     return reviews, zip(items, indices)
 

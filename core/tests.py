@@ -1,5 +1,14 @@
+import os
 import sqlite3
+from datetime import date
 from decimal import Decimal
+
+# `core.views` raises at import time unless these are set. The URLconf (and thus
+# views) is imported lazily on the first request, so setting them here keeps the
+# test suite independent of the developer's .env file.
+os.environ.setdefault('TITLE', 'test-site')
+os.environ.setdefault('KEYWORDS_FILE', 'data/biomed-dl/keywords.txt')
+os.environ.setdefault('FIELDS_FILE', 'data/biomed-dl/fields.tsv')
 
 from django.db import connection
 from django.test import SimpleTestCase, TestCase
@@ -64,3 +73,79 @@ class IterPapersWithItemsTests(TestCase):
         self.assertEqual(len(papers), paper_count)
         for paper in papers:
             self.assertIn('parseditem_set', paper._prefetched_objects_cache)
+
+
+class HomePaginationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        Paper.objects.bulk_create([
+            Paper(
+                title=f'paper {i}',
+                source=f'src{i:03d}',
+                pub_date_dt=date(2024, 1, 1),
+            )
+            for i in range(30)
+        ])
+
+    def get_page(self, **params):
+        return self.client.get('/', params, SERVER_NAME='localhost')
+
+    def test_first_page_renders(self):
+        response = self.get_page(page=1)
+        self.assertEqual(response.status_code, 200)
+
+    def test_default_page_is_first(self):
+        response = self.client.get('/', SERVER_NAME='localhost')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['papers'].number, 1)
+
+    def test_last_page_renders(self):
+        response = self.get_page(page=2)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['papers'].number, 2)
+
+    def test_page_beyond_last_returns_404(self):
+        # Crawlers used to receive 200 + the last page here, which kept them
+        # enumerating deeper pages. Out-of-range must be a hard 404.
+        self.assertEqual(self.get_page(page=3).status_code, 404)
+
+    def test_page_zero_returns_404(self):
+        self.assertEqual(self.get_page(page=0).status_code, 404)
+
+    def test_negative_page_returns_404(self):
+        self.assertEqual(self.get_page(page=-1).status_code, 404)
+
+    def test_non_integer_page_returns_404(self):
+        self.assertEqual(self.get_page(page='abc').status_code, 404)
+
+    def test_absurd_page_returns_404(self):
+        self.assertEqual(self.get_page(page='1038895040').status_code, 404)
+
+
+class HomeEmptyDatabaseTests(TestCase):
+    def test_first_page_renders(self):
+        response = self.client.get('/', SERVER_NAME='localhost')
+        self.assertEqual(response.status_code, 200)
+
+    def test_second_page_returns_404(self):
+        response = self.client.get('/', {'page': 2}, SERVER_NAME='localhost')
+        self.assertEqual(response.status_code, 404)
+
+
+class PaperIndexTests(SimpleTestCase):
+    def test_source_pub_date_index_declared(self):
+        declared = [tuple(index.fields) for index in Paper._meta.indexes]
+        self.assertIn(('source', 'pub_date_dt'), declared)
+
+
+class PaperIndexDatabaseTests(TestCase):
+    def test_index_created_by_migrations(self):
+        if connection.vendor != 'sqlite':
+            self.skipTest('SQLite-specific schema check')
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='index' AND tbl_name='core_paper'"
+            )
+            names = {row[0] for row in cursor.fetchall()}
+        self.assertIn('core_paper_src_date', names)
