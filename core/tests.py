@@ -12,6 +12,7 @@ os.environ.setdefault('FIELDS_FILE', 'data/biomed-dl/fields.tsv')
 
 from django.db import connection
 from django.test import SimpleTestCase, TestCase
+from django.test.utils import CaptureQueriesContext
 
 from core.management.commands.generate_excel import (
     PREFETCH_BATCH_SIZE,
@@ -149,3 +150,48 @@ class PaperIndexDatabaseTests(TestCase):
             )
             names = {row[0] for row in cursor.fetchall()}
         self.assertIn('core_paper_src_date', names)
+
+
+class StatViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        Paper.objects.bulk_create([
+            Paper(title='a', pub_date_dt=date(2024, 1, 5)),
+            Paper(title='b', pub_date_dt=date(2024, 1, 20)),
+            Paper(title='c', pub_date_dt=date(2024, 3, 1)),
+            Paper(title='d', pub_date_dt=date(2023, 12, 31)),
+            Paper(title='e', pub_date_dt=None),
+        ])
+
+    def get_stat(self):
+        return self.client.get('/stat/', SERVER_NAME='localhost')
+
+    def test_stat_page_renders(self):
+        # Rows without a parseable date must not crash the page.
+        self.assertEqual(self.get_stat().status_code, 200)
+
+    def test_stat_counts_by_year_and_month(self):
+        data = self.get_stat().context['data']
+        by_year = {row['year']: row for row in data}
+
+        self.assertEqual(sorted(by_year), [2023, 2024])
+        self.assertEqual(by_year[2024]['total'], 3)
+        self.assertEqual(by_year[2023]['total'], 1)
+
+        months_2024 = {month['month']: month['count']
+                       for month in by_year[2024]['months']}
+        self.assertEqual(len(months_2024), 12)
+        self.assertEqual(months_2024['01'], 2)
+        self.assertEqual(months_2024['02'], 0)
+        self.assertEqual(months_2024['03'], 1)
+
+    def test_stat_query_aggregates_without_loading_full_rows(self):
+        with CaptureQueriesContext(connection) as context:
+            self.get_stat()
+
+        paper_queries = [query['sql'] for query in context.captured_queries
+                         if 'core_paper' in query['sql']]
+        self.assertTrue(paper_queries)
+        for sql in paper_queries:
+            self.assertNotIn('abstract', sql)
+        self.assertTrue(any('GROUP BY' in sql.upper() for sql in paper_queries))

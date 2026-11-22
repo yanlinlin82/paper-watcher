@@ -11,7 +11,6 @@ import qrcode
 import json
 import calendar
 from io import BytesIO
-from collections import Counter
 from decimal import Decimal
 from openpyxl import Workbook
 from Crypto.Cipher import AES
@@ -21,7 +20,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography import x509
 from django.shortcuts import render, redirect
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Count, Q
+from django.db.models.functions import ExtractMonth, ExtractYear
 from django.http import Http404, HttpResponse, FileResponse, JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import login, logout
@@ -287,9 +287,24 @@ def home(request):
     })
 
 def stat(request):
-    papers = Paper.objects.all().order_by('-pub_date_dt')
-    year_counts = Counter([paper.pub_date_dt.year for paper in papers])
-    month_counts = Counter([f"{paper.pub_date_dt.year}-{paper.pub_date_dt.month:02}" for paper in papers])
+    # 在数据库里一次聚合出年月计数，避免把整张表（含 abstract 大字段）读进
+    # Python：5 万行级别的站点上，旧实现单次请求会物化整张表，既慢又占内存。
+    # pub_date_dt 为空的记录无法归入年月，直接跳过（旧实现会在这里抛异常）。
+    month_counts = {
+        (row['year'], row['month']): row['count']
+        for row in (
+            Paper.objects
+            .filter(pub_date_dt__isnull=False)
+            .annotate(year=ExtractYear('pub_date_dt'), month=ExtractMonth('pub_date_dt'))
+            .values('year', 'month')
+            .annotate(count=Count('id'))
+            .order_by()
+        )
+    }
+
+    year_counts = {}
+    for (year, _month), count in month_counts.items():
+        year_counts[year] = year_counts.get(year, 0) + count
 
     years = sorted(year_counts.keys(), reverse=True)  # 获取所有年份并按倒序排列
     months = [f"{i:02d}" for i in range(1, 13)]  # 生成月份列表
@@ -299,7 +314,7 @@ def stat(request):
     for year in years:
         year_data = {'year': year, 'total': year_counts[year], 'months': []}
         for month in months:
-            count = month_counts.get(f"{year}-{month}", 0)
+            count = month_counts.get((year, int(month)), 0)
             year_data['months'].append({'month': month, 'count': count})
         data.append(year_data)
 
